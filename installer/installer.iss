@@ -1,6 +1,6 @@
 ; 墨墨背单词 - Inno Setup 安装脚本
 #define MyAppName "墨墨背单词"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.1.1"
 #define MyAppExe "墨墨背单词.exe"
 #define MyWebBat "启动Web版.bat"
 

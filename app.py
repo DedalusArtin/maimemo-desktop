@@ -109,9 +109,19 @@ def api_post(path, body):
     return r.json()
 
 
+def _unwrap(j):
+    """墨墨接口统一返回 {errors, data, success}:拆出 data,errors 非空时抛错"""
+    if isinstance(j, dict):
+        errs = j.get("errors")
+        if errs:
+            raise ValueError(str(errs)[:150])
+        return j.get("data") if isinstance(j.get("data"), dict) else j
+    return j
+
+
 def fetch_today_items():
     """拉取今日学习单词(公测接口,需App当日打开过且开启自动同步)"""
-    j = api_post("/study/get_today_items", {"is_finished": False, "limit": 1000})
+    j = _unwrap(api_post("/study/get_today_items", {"is_finished": False, "limit": 1000}))
     out = []
     for it in (j.get("today_items") or []):
         sp = (it.get("voc_spelling") or "").strip()
@@ -127,13 +137,13 @@ def fetch_today_items():
 
 
 def api_voc_id(spelling):
-    j = api_get("/vocabulary", {"spelling": spelling})
+    j = _unwrap(api_get("/vocabulary", {"spelling": spelling}))
     voc = j.get("voc") or {}
     return voc.get("id") or ""
 
 
 def api_add_words(ids, advance=False):
-    j = api_post("/study/add_words", {"words": [{"id": i} for i in ids], "advance": advance})
+    j = _unwrap(api_post("/study/add_words", {"words": [{"id": i} for i in ids], "advance": advance}))
     return j.get("added_count", 0)
 
 
@@ -158,6 +168,8 @@ def _friendly_sync_error(e):
         return "墨墨接口错误(HTTP {})".format(code)
     if isinstance(e, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
         return "连不上墨墨服务器(检查网络/代理),已自动用本地词表"
+    if isinstance(e, ValueError):
+        return "墨墨接口返回错误:{}".format(str(e)[:120])
     return "墨墨同步失败:{}".format(str(e)[:100])
 
 
@@ -248,7 +260,7 @@ def enrich(spelling, voc_id=""):
 
     if tok and voc_id:
         try:
-            j = api_get("/interpretations", {"voc_id": voc_id})
+            j = _unwrap(api_get("/interpretations", {"voc_id": voc_id}))
             for it in (j.get("interpretations") or [])[:3]:
                 content = it.get("content")
                 if isinstance(content, str) and content.strip():
@@ -261,7 +273,7 @@ def enrich(spelling, voc_id=""):
         except Exception:
             pass
         try:
-            j = api_get("/phrases", {"voc_id": voc_id})
+            j = _unwrap(api_get("/phrases", {"voc_id": voc_id}))
             for ph in (j.get("phrases") or [])[:3]:
                 en = (ph.get("phrase") or "").strip()
                 if en:
@@ -532,8 +544,8 @@ class Api:
     def import_notepads(self):
         """从墨墨云词本导入单词(需在App里创建云词本)"""
         try:
-            j = api_get("/notepads", {})
-            pads = ((j.get("data") or j).get("notepads")) or []
+            j = _unwrap(api_get("/notepads", {}))
+            pads = j.get("notepads") or []
             if not pads:
                 return {"ok": False, "msg": "云词本为空:在墨墨App里创建云词本、添加单词后,再来导入"}
             added = 0
@@ -541,8 +553,8 @@ class Api:
                 pid = p.get("id")
                 if not pid:
                     continue
-                d = api_get("/notepads/" + pid, {})
-                np = ((d.get("data") or d).get("notepad")) or d
+                d = _unwrap(api_get("/notepads/" + pid, {}))
+                np = d.get("notepad") or d
                 content = np.get("content") or ""
                 for w in re.split(r"[\s,，、;\n]+", str(content)):
                     w = w.strip()
