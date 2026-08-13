@@ -9,6 +9,7 @@
 import ctypes
 import json
 import os
+import random
 import re
 import subprocess
 import sys
@@ -41,6 +42,7 @@ DEFAULTS = {
     "tts": "edge",
     "youdao_enrich": True,
     "auto_mode": True,
+    "shuffle": True,
 }
 
 _session = requests.Session()
@@ -133,6 +135,39 @@ def api_voc_id(spelling):
 def api_add_words(ids, advance=False):
     j = api_post("/study/add_words", {"words": [{"id": i} for i in ids], "advance": advance})
     return j.get("added_count", 0)
+
+
+def _friendly_sync_error(e):
+    """把同步异常翻译成人话,方便用户自助排查"""
+    if isinstance(e, requests.exceptions.HTTPError):
+        resp = getattr(e, "response", None)
+        code = resp.status_code if resp is not None else 0
+        if code in (401, 403):
+            return "墨墨token无效或已过期:去墨墨App(我的→更多设置→实验功能→开放API)重新复制"
+        if code == 429:
+            return "墨墨接口限流(请求太频繁),稍等几分钟再试"
+        msg = ""
+        try:
+            j = resp.json()
+            if isinstance(j, dict):
+                msg = j.get("msg") or j.get("message") or j.get("detail") or ""
+        except Exception:
+            pass
+        if msg:
+            return "墨墨接口返回:{}".format(str(msg)[:80])
+        return "墨墨接口错误(HTTP {})".format(code)
+    if isinstance(e, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+        return "连不上墨墨服务器(检查网络/代理),已自动用本地词表"
+    return "墨墨同步失败:{}".format(str(e)[:100])
+
+
+def fetch_today_items_retry():
+    """拉取今日单词,网络抖动自动重试一次"""
+    try:
+        return fetch_today_items()
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        time.sleep(1.0)
+        return fetch_today_items()
 
 
 # ---------------- 本地词表 ----------------
@@ -382,7 +417,7 @@ class Api:
             skip = lambda k: k in self.mastered or (k in rev and rev[k].get("due", 0) > now)
             if tok and cfg.get("use_api", True):
                 try:
-                    for it in fetch_today_items():
+                    for it in fetch_today_items_retry():
                         k = it["spelling"].lower()
                         if skip(k):
                             continue
@@ -391,7 +426,7 @@ class Api:
                             "is_new": it["is_new"], "source": "maimemo",
                             "local_meaning": ""}
                 except Exception as e:
-                    self.pool_error = "墨墨同步失败:{}".format(e)
+                    self.pool_error = _friendly_sync_error(e)
             for sp, v in local.items():
                 if skip(sp):
                     continue
@@ -419,6 +454,15 @@ class Api:
             "error": self.pool_error,
             "cfg": cfg,
         }
+
+    def resync(self):
+        """重新拉取墨墨词表(不改配置,立即重试)"""
+        self.pool_ready = False
+        self.pool_error = ""
+        self.pool = []
+        self.later = []
+        threading.Thread(target=self._init_pool, daemon=True).start()
+        return {"ok": True}
 
     def get_words(self, start=0, count=600):
         # 到期的模糊词自动回到词池
@@ -613,7 +657,7 @@ def _main():
     api = Api(window)
     for _m in ("get_state", "get_words", "get_detail", "speak", "mark_mastered",
                "mark_vague", "mark_forget", "add_preview", "add_word", "import_notepads",
-               "save_cfg", "set_size", "reposition", "quit"):
+               "save_cfg", "set_size", "reposition", "quit", "resync"):
         window.expose(getattr(api, _m))
     print("exposed, starting...", flush=True)
     webview.start()

@@ -187,6 +187,7 @@
         <span style="width:auto;margin-left:auto">发音</span><select id="cfgTts" style="width:120px">
         <option value="edge">Edge 自然发音</option><option value="sapi">Windows 内置</option></select>
         <button class="btnCfg" id="btnSaveCfg">保存</button></div>
+      <div class="cfgRow"><span>重新同步</span><button class="btnCfg" id="btnResync" style="width:auto">🔄 立即同步墨墨词表</button></div>
     </div>
     <div id="fStatus"></div>
   </div>
@@ -221,6 +222,15 @@ function highlight(en, word) {
 }
 
 /* ---------- 初始化 ---------- */
+function updateChip() {
+  const c = $("cChip"), f = $("fChip");
+  const txt = state.error ? "同步失败·本地模式" : (state.mode === "maimemo" ? "墨墨已同步" : "本地词表");
+  $("cChipText").textContent = txt;
+  $("fChipText").textContent = state.mode === "maimemo" && !state.error ? "墨墨已同步" : "本地词表";
+  c.querySelector(".dot").style.background = state.error ? "#f59e0b" : (state.mode === "maimemo" ? "#34d399" : "#8b93a5");
+  f.querySelector(".dot").style.background = c.querySelector(".dot").style.background;
+  c.title = f.title = state.error ? ("同步失败:" + state.error + "(可在设置里点🔄重试)") : "";
+}
 async function init() {
   api = window.pywebview.api;
   try { state = await api.get_state(); } catch (e) { state.error = String(e); }
@@ -228,21 +238,28 @@ async function init() {
   $("loading").style.display = "none";
   autoMode = !!(state.cfg && state.cfg.auto_mode !== false);
   renderModeBtn();
-  if (state.error) {
-    $("cChipText").textContent = "同步失败·本地模式";
-    $("cChip").querySelector(".dot").style.background = "#f59e0b";
-  } else if (state.mode === "maimemo") {
-    $("cChipText").textContent = "墨墨已同步";
-  } else {
-    $("cChipText").textContent = "本地词表";
-    $("cChip").querySelector(".dot").style.background = "#8b93a5";
-  }
-  $("fChipText").textContent = state.mode === "maimemo" ? "墨墨已同步" : "本地词表";
+  updateChip();
   try { await api.reposition(); } catch (e) {}
   words = await api.get_words(0, 600);
   if (!words.length) { showEmpty(); return; }
   showWord();
   schedule();
+}
+
+/* 一键重新同步墨墨词表 */
+async function resync() {
+  toast("正在重新同步墨墨词表…", 3500);
+  try { await api.resync(); } catch (e) { toast("重同步失败:" + e, 3000); return; }
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    try { state = await api.get_state(); if (state.ready) break; } catch (e) {}
+  }
+  words = await api.get_words(0, 600);
+  idx = 0; detailCache = {};
+  updateChip();
+  if (words.length) { showWord(); schedule(); }
+  else showEmpty();
+  toast(state.error ? ("同步失败:" + state.error) : (state.mode === "maimemo" ? "同步成功 🎉" : "未配置token,使用本地词表"), 4000);
 }
 
 function showEmpty() {
@@ -523,6 +540,7 @@ $("fCfgLink").addEventListener("click", () => {
   }
 });
 $("btnSaveCfg").addEventListener("click", saveCfg);
+$("btnResync").addEventListener("click", resync);
 
 window.addEventListener("pywebviewready", init);
 </script>

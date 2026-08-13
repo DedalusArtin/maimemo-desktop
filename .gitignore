@@ -2,6 +2,7 @@
 config.json
 cache.json
 mastered.txt
+review.json
 error.log
 .lock
 
@@ -10,10 +11,11 @@ _internal/
 build/
 dist/
 *.spec
+安装包/
 
 # 运行环境
 __pycache__/
 *.pyc
 
 # 编译产物
-墨墨背单词.exe
+*.exe
