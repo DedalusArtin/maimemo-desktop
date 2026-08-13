@@ -1,0 +1,7 @@
+# 本地词表:每行一个,格式: 单词 | 释义
+# 以 # 开头的行会被忽略;从墨墨同步的词会合并进来
+abandon | v. 放弃;抛弃
+benevolent | adj. 仁慈的;善意的
+contemplate | v. 沉思;仔细考虑
+diligent | adj. 勤勉的;用功的
+eloquent | adj. 雄辩的;有说服力的

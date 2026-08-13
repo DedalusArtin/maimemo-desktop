@@ -1,0 +1,10 @@
+{
+  "token": "",
+  "use_api": true,
+  "show_word_sec": 6,
+  "show_meaning_sec": 5,
+  "corner": "bottom_right",
+  "tts": "edge",
+  "youdao_enrich": true,
+  "auto_mode": true
+}

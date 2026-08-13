@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>墨墨背单词</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #14161c; overflow: hidden;
+    font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif; user-select: none; }
+  #card { width: 100%; height: 100%; border-radius: 18px; position: relative; overflow: hidden;
+    background: linear-gradient(165deg, #232833 0%, #1a1e28 55%, #14161c 100%);
+    border: 1px solid rgba(255,255,255,.09);
+    box-shadow: 0 10px 36px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05);
+    display: flex; flex-direction: column; }
+
+  /* ---------- 紧凑模式 ---------- */
+  #compact { flex: 1; display: flex; flex-direction: column; padding: 10px 14px 8px; cursor: pointer; position: relative; }
+  #cDrag { position: absolute; top: 0; left: 0; right: 0; height: 24px; -webkit-app-region: drag; }
+  #cTop { display: flex; align-items: center; height: 18px; margin-bottom: 2px; }
+  #cChip { font-size: 10px; color: #7f8798; display: flex; align-items: center; gap: 4px; margin-right: auto; }
+  #cChip .dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; }
+  #cMode { font-size: 10px; color: #5c6475; border: 1px solid rgba(255,255,255,.14); border-radius: 6px; padding: 1px 6px; cursor: pointer; }
+  #cMode:hover { color: #2dd4bf; border-color: rgba(45,212,191,.5); }
+  #cWord { font-size: 27px; font-weight: 700; color: #fff; letter-spacing: .5px; margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #cPhone { font-size: 12px; color: #7f8798; margin-top: 2px; height: 15px; }
+  #cMean { font-size: 13.5px; color: #c9cfdb; margin-top: 5px; height: 18px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .25s; }
+  #cEx { font-size: 12px; color: #8b93a5; height: 16px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; opacity: 0; transition: opacity .25s; margin-top: 1px; }
+  #cMean.show, #cEx.show { opacity: 1; }
+  #cBar { margin-top: 7px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
+  #cBarFill { height: 100%; width: 0%; border-radius: 2px;
+    background: linear-gradient(90deg, #2dd4bf, #34d399); transition: width .3s; }
+  #cCount { position: absolute; bottom: 11px; left: 14px; font-size: 11px; color: #6b7280; }
+  #cBtns { position: absolute; bottom: 7px; right: 10px; display: flex; gap: 5px; }
+  .cbtn { width: 24px; height: 24px; border-radius: 7px; border: none; cursor: pointer;
+    background: rgba(255,255,255,.07); color: #aab2c2; font-size: 12px; line-height: 1; padding: 0; }
+  .cbtn:hover { background: rgba(255,255,255,.15); color: #fff; }
+  #cHint { position: absolute; bottom: 11px; right: 10px; font-size: 10px; color: #4d5464; display: none; }
+  #cBtns:hover ~ #cHint { display: none; }
+
+  /* ---------- 展开模式 ---------- */
+  #full { display: none; flex: 1; flex-direction: column; padding: 14px 18px 12px; }
+  #full.open { display: flex; }
+  #fHead { display: flex; align-items: center; gap: 8px; -webkit-app-region: drag; padding-bottom: 10px; }
+  #fHead .drag-zone { flex: 1; }
+  #fChip { font-size: 10.5px; color: #8b93a5; display: flex; align-items: center; gap: 5px; }
+  #fChip .dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; }
+  .btnX { -webkit-app-region: no-drag; width: 24px; height: 24px; border-radius: 7px; border: none; cursor: pointer;
+    background: rgba(255,255,255,.06); color: #9aa3b5; font-size: 12px; line-height: 1; }
+  .btnX:hover { background: rgba(255,80,80,.25); color: #ff8080; }
+  #fWordRow { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  #fWord { font-size: 33px; font-weight: 700; color: #fff; letter-spacing: .5px; }
+  #fPhone { font-size: 13.5px; color: #8b93a5; }
+  #fNew { font-size: 10px; color: #fbbf24; border: 1px solid rgba(251,191,36,.4); border-radius: 6px; padding: 1px 6px; }
+  #fSpeak { -webkit-app-region: no-drag; border: none; cursor: pointer; background: rgba(255,255,255,.07);
+    border-radius: 50%; width: 34px; height: 34px; font-size: 16px; color: #d1d6e0; margin-left: auto; }
+  #fSpeak:hover { background: rgba(255,255,255,.14); }
+  #fMeanList { margin-top: 10px; max-height: 128px; overflow-y: auto; padding-right: 4px; }
+  #fMeanList .m { font-size: 14px; color: #d7dce6; padding: 3.5px 0; line-height: 1.45; }
+  #fMeanList .m .pos { color: #2dd4bf; font-weight: 600; margin-right: 6px; }
+  .secTitle { font-size: 11px; color: #5c6475; margin: 10px 0 5px; letter-spacing: 1px; }
+  #fExList { max-height: 124px; overflow-y: auto; padding-right: 4px; }
+  #fExList .ex { margin-bottom: 8px; }
+  #fExList .en { font-size: 14px; color: #e6e9f0; line-height: 1.5; }
+  #fExList .en mark { background: transparent; color: #34d399; font-weight: 600; }
+  #fExList .zh { font-size: 12.5px; color: #7f8798; margin-top: 2px; }
+  #fActions { display: flex; gap: 7px; margin-top: auto; padding-top: 12px; }
+  .btn { -webkit-app-region: no-drag; flex: 1; height: 40px; border: none; border-radius: 11px; cursor: pointer;
+    font-size: 14px; font-weight: 600; color: #fff; font-family: inherit; transition: transform .08s, filter .15s; }
+  .btn:active { transform: scale(.96); }
+  .btnIcon { flex: 0 0 40px; font-size: 15px; }
+  .btnPrimary { background: linear-gradient(135deg, #2dd4bf, #34d399); color: #0b1220; }
+  .btnPrimary:hover { filter: brightness(1.08); }
+  .btnGhost { background: rgba(255,255,255,.07); color: #c9cfdb; }
+  .btnGhost:hover { background: rgba(255,255,255,.13); }
+  .btnGreen { background: linear-gradient(135deg, #34d399, #4ade80); color: #0b1220; }
+  .btnGreen:hover { filter: brightness(1.08); }
+  #fAddRow { display: flex; gap: 6px; margin-top: 10px; }
+  #fAddInput { -webkit-app-region: no-drag; flex: 1; height: 32px; border-radius: 9px; border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.05); color: #e6e9f0; font-size: 13px; padding: 0 10px; outline: none; font-family: inherit; }
+  #fAddInput:focus { border-color: rgba(45,212,191,.5); }
+  .btnAdd { -webkit-app-region: no-drag; height: 32px; padding: 0 12px; border: none; border-radius: 9px; cursor: pointer;
+    background: rgba(45,212,191,.16); color: #2dd4bf; font-size: 12.5px; font-weight: 600; font-family: inherit; }
+  .btnAdd:hover { background: rgba(45,212,191,.28); }
+  #fCfg { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.06); display: none; }
+  #fCfg.open { display: block; }
+  .cfgRow { display: flex; gap: 8px; align-items: center; margin-bottom: 7px; }
+  .cfgRow span { font-size: 12px; color: #8b93a5; width: 76px; flex-shrink: 0; }
+  .cfgRow input[type=text] { -webkit-app-region: no-drag; flex: 1; height: 26px; border-radius: 7px;
+    border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: #e6e9f0; font-size: 12px; padding: 0 8px; outline: none; font-family: inherit; }
+  .cfgRow input[type=number] { -webkit-app-region: no-drag; width: 56px; height: 26px; border-radius: 7px;
+    border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: #e6e9f0; font-size: 12px; padding: 0 8px; outline: none; font-family: inherit; }
+  .cfgRow select { -webkit-app-region: no-drag; flex: 1; height: 26px; border-radius: 7px;
+    border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: #e6e9f0; font-size: 12px; padding: 0 8px; outline: none; font-family: inherit; }
+  .cfgRow label { font-size: 12px; color: #8b93a5; display: flex; align-items: center; gap: 5px; }
+  .btnCfg { -webkit-app-region: no-drag; height: 26px; padding: 0 12px; border: none; border-radius: 7px; cursor: pointer;
+    background: rgba(45,212,191,.16); color: #2dd4bf; font-size: 12px; font-weight: 600; font-family: inherit; }
+  .btnCfg:hover { background: rgba(45,212,191,.28); }
+  #fCfgLink { -webkit-app-region: no-drag; background: none; border: none; color: #5c6475; font-size: 11px;
+    cursor: pointer; font-family: inherit; text-decoration: underline; margin-top: 8px; }
+  #fCfgLink:hover { color: #8b93a5; }
+  #fStatus { margin-top: 8px; font-size: 10.5px; color: #5c6475; line-height: 1.5; }
+  #toast { position: absolute; left: 50%; bottom: 56px; transform: translateX(-50%) translateY(8px);
+    background: rgba(20,24,32,.95); border: 1px solid rgba(45,212,191,.35); color: #d7dce6;
+    font-size: 12px; padding: 7px 14px; border-radius: 10px; opacity: 0; transition: all .2s; pointer-events: none;
+    white-space: nowrap; max-width: 90%; overflow: hidden; text-overflow: ellipsis; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    gap: 10px; color: #7f8798; font-size: 13px; background: linear-gradient(165deg, #232833, #14161c); }
+  .spin { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.15); border-top-color: #34d399;
+    border-radius: 50%; animation: sp .8s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="card">
+  <div id="loading"><div class="spin"></div>正在同步墨墨词表…</div>
+
+  <!-- 紧凑模式:左键=出中文/下一个,右键=展开,◀回看,🔊发音 -->
+  <div id="compact">
+    <div id="cDrag"></div>
+    <div id="cTop">
+      <span id="cChip"><span class="dot"></span><span id="cChipText">同步中</span></span>
+      <span id="cMode" title="自动轮播 / 手动模式">⏱ 自动</span>
+    </div>
+    <div id="cWord">…</div>
+    <div id="cPhone"></div>
+    <div id="cMean"></div>
+    <div id="cEx"></div>
+    <div id="cBar"><div id="cBarFill"></div></div>
+    <div id="cCount"></div>
+    <div id="cBtns">
+      <button class="cbtn" id="btnPrevC" title="上一个">◀</button>
+      <button class="cbtn" id="btnSpeakC" title="发音">🔊</button>
+    </div>
+  </div>
+
+  <!-- 展开模式 -->
+  <div id="full">
+    <div id="fHead">
+      <span class="drag-zone"></span>
+      <span id="fChip"><span class="dot"></span><span id="fChipText">本地词表</span></span>
+      <button class="btnX" id="btnQuit" title="退出">✕</button>
+    </div>
+    <div id="fWordRow">
+      <span id="fWord">—</span><span id="fPhone"></span><span id="fNew">新词</span>
+      <button id="fSpeak" title="发音">🔊</button>
+    </div>
+    <div class="secTitle">释义</div>
+    <div id="fMeanList"><div class="m">加载中…</div></div>
+    <div class="secTitle">例句</div>
+    <div id="fExList"></div>
+    <div id="fActions">
+      <button class="btn btnGhost btnIcon" id="btnPrev" title="上一个">◀</button>
+      <button class="btn btnGreen" id="btnKnow">✓ 认识</button>
+      <button class="btn btnPrimary" id="btnNext">下一个 →</button>
+      <button class="btn btnGhost" id="btnPause">⏸ 暂停</button>
+      <button class="btn btnGhost btnIcon" id="btnCollapse" title="收起">▾</button>
+    </div>
+    <div id="fAddRow">
+      <input id="fAddInput" placeholder="添加单词(自动同步到墨墨)" />
+      <button class="btnAdd" id="btnAdd">添加</button>
+    </div>
+    <button id="fCfgLink">⚙ 设置(token / 间隔 / 角落 / 轮播)</button>
+    <div id="fCfg">
+      <div class="cfgRow"><span>墨墨Token</span><input type="text" id="cfgToken" placeholder="墨墨App: 我的→更多设置→实验功能→开放API" /></div>
+      <div class="cfgRow"><span>单词秒数</span><input type="number" id="cfgWordSec" min="2" max="120" /><span>释义秒数</span><input type="number" id="cfgMeanSec" min="2" max="120" /></div>
+      <div class="cfgRow"><span>窗口角落</span><select id="cfgCorner">
+        <option value="bottom_right">右下角</option><option value="bottom_left">左下角</option>
+        <option value="top_right">右上角</option><option value="top_left">左上角</option></select></div>
+      <div class="cfgRow"><span>自动轮播</span><label><input type="checkbox" id="cfgAuto" style="-webkit-app-region:no-drag" /> 开启</label>
+        <span style="width:auto;margin-left:auto">发音</span><select id="cfgTts" style="width:120px">
+        <option value="edge">Edge 自然发音</option><option value="sapi">Windows 内置</option></select>
+        <button class="btnCfg" id="btnSaveCfg">保存</button></div>
+    </div>
+    <div id="fStatus"></div>
+  </div>
+
+  <div id="toast"></div>
+</div>
+
+<script>
+"use strict";
+let api = null;
+let state = { ready: false, mode: "local", total: 0, error: "", cfg: {} };
+let words = [];
+let idx = 0, phase = 0, expanded = false, paused = false, autoMode = true;
+let timer = null;
+let detailCache = {};
+
+const $ = id => document.getElementById(id);
+
+function toast(msg, ms) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), ms || 2200);
+}
+function fmtPos(m) {
+  const mm = m.match(/^\s*([a-z]+)\.?\s/i);
+  return mm ? { pos: mm[1], rest: m.slice(mm[0].length) } : { pos: "", rest: m };
+}
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function highlight(en, word) {
+  if (!word) return esc(en);
+  const re = new RegExp("(" + word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
+  return esc(en).replace(re, "<mark>$1</mark>");
+}
+
+/* ---------- 初始化 ---------- */
+async function init() {
+  api = window.pywebview.api;
+  try { state = await api.get_state(); } catch (e) { state.error = String(e); }
+  if (!state.ready) { setTimeout(init, 700); return; }
+  $("loading").style.display = "none";
+  autoMode = !!(state.cfg && state.cfg.auto_mode !== false);
+  renderModeBtn();
+  if (state.error) {
+    $("cChipText").textContent = "同步失败·本地模式";
+    $("cChip").querySelector(".dot").style.background = "#f59e0b";
+  } else if (state.mode === "maimemo") {
+    $("cChipText").textContent = "墨墨已同步";
+  } else {
+    $("cChipText").textContent = "本地词表";
+    $("cChip").querySelector(".dot").style.background = "#8b93a5";
+  }
+  $("fChipText").textContent = state.mode === "maimemo" ? "墨墨已同步" : "本地词表";
+  try { await api.reposition(); } catch (e) {}
+  words = await api.get_words(0, 600);
+  if (!words.length) { showEmpty(); return; }
+  showWord();
+  schedule();
+}
+
+function showEmpty() {
+  $("cWord").textContent = "词表为空 🎉";
+  $("cMean").textContent = "右键展开,在下方添加单词";
+  $("cMean").classList.add("show");
+  $("cCount").textContent = "0 词";
+}
+
+/* ---------- 紧凑显示 ---------- */
+function renderModeBtn() {
+  $("cMode").textContent = autoMode ? "⏱ 自动" : "✋ 手动";
+  $("cMode").title = autoMode ? "当前:自动轮播,点击切换手动" : "当前:手动模式,点击切换自动";
+}
+function showWord() {
+  if (!words.length) return;
+  const w = words[idx];
+  const cached = detailCache[w.spelling.toLowerCase()];
+  $("cWord").textContent = w.spelling;
+  $("cPhone").textContent = cached ? cached.phonetic || "" : "";
+  $("cMean").classList.remove("show");
+  $("cEx").classList.remove("show");
+  phase = 0;
+  $("cCount").textContent = (idx + 1) + " / " + words.length;
+  $("cBarFill").style.width = ((idx + 1) / words.length * 100) + "%";
+}
+async function showMeaning() {
+  const w = words[idx];
+  phase = 1;
+  const cached = detailCache[w.spelling.toLowerCase()];
+  let text = w.local_meaning || (cached && cached.meanings.length ? cached.meanings[0] : "");
+  if (text) { $("cMean").textContent = text; $("cMean").classList.add("show"); }
+  if (cached && cached.examples && cached.examples.length) {
+    const ex = cached.examples[0];
+    $("cEx").textContent = ex.en + (ex.zh ? "  " + ex.zh : "");
+    $("cEx").classList.add("show");
+  } else if (w.local_meaning && !cached) {
+    // 有本地释义但缺例句:后台拉详情补全
+    fetchDetail(w);
+  } else if (!cached) {
+    fetchDetail(w);
+  }
+}
+async function fetchDetail(w) {
+  try {
+    const d = await api.get_detail(w.spelling);
+    detailCache[w.spelling.toLowerCase()] = d;
+    if (idx < words.length && words[idx].spelling.toLowerCase() === w.spelling.toLowerCase() && !expanded) {
+      if (!phase) { $("cPhone").textContent = d.phonetic || ""; }
+      else {
+        if (!$("cMean").textContent && d.meanings.length) { $("cMean").textContent = d.meanings[0]; $("cMean").classList.add("show"); }
+        if (d.examples.length) {
+          const ex = d.examples[0];
+          $("cEx").textContent = ex.en + (ex.zh ? "  " + ex.zh : "");
+          $("cEx").classList.add("show");
+        }
+      }
+    }
+  } catch (e) {}
+}
+function nextIdx() { idx = (idx + 1) % words.length; }
+function prevIdx() { idx = (idx - 1 + words.length) % words.length; }
+
+/* 自动轮播 */
+function schedule() {
+  clearTimeout(timer);
+  if (!autoMode || expanded || paused) return;
+  const cfg = state.cfg || {};
+  const sec = (phase === 0 ? cfg.show_word_sec : cfg.show_meaning_sec) || 6;
+  timer = setTimeout(() => {
+    if (expanded || paused || !autoMode) return;
+    if (phase === 0) { showMeaning(); } else { nextIdx(); showWord(); }
+    schedule();
+  }, sec * 1000);
+}
+
+/* 紧凑交互:左键 出中文→下一个;右键 展开 */
+async function compactClick() {
+  if (!words.length) return;
+  if (phase === 0) { showMeaning(); schedule(); }
+  else { nextIdx(); showWord(); schedule(); }
+}
+async function compactPrev() { prevIdx(); showWord(); schedule(); }
+async function compactSpeak() {
+  if (!words.length) return;
+  try { await api.speak(words[idx].spelling); } catch (e) {}
+}
+async function toggleAuto() {
+  autoMode = !autoMode;
+  renderModeBtn();
+  try { await api.save_cfg({ auto_mode: autoMode }); } catch (e) {}
+  if (autoMode) schedule(); else clearTimeout(timer);
+  toast(autoMode ? "已切换:自动轮播" : "已切换:手动模式(左键翻词)");
+}
+
+/* ---------- 展开 ---------- */
+async function expand() {
+  if (expanded) return;
+  expanded = true;
+  clearTimeout(timer);
+  $("compact").style.display = "none";
+  $("full").classList.add("open");
+  await api.set_size(470, 660);
+  await renderDetail();
+  setTimeout(() => api.reposition(), 120);
+}
+async function collapse() {
+  expanded = false;
+  $("full").classList.remove("open");
+  $("compact").style.display = "flex";
+  await api.set_size(400, 168);
+  setTimeout(() => api.reposition(), 120);
+  schedule();
+}
+async function renderDetail() {
+  const w = words[idx];
+  $("fWord").textContent = w.spelling;
+  $("fNew").style.display = w.is_new ? "" : "none";
+  $("fMeanList").innerHTML = '<div class="m" style="color:#5c6475">加载词义…</div>';
+  $("fExList").innerHTML = "";
+  let d = detailCache[w.spelling.toLowerCase()];
+  if (!d) {
+    try { d = await api.get_detail(w.spelling); detailCache[w.spelling.toLowerCase()] = d; }
+    catch (e) { d = { phonetic: "", meanings: [], examples: [], source: "local" }; }
+  }
+  $("fPhone").textContent = d.phonetic || "";
+  const src = d.source === "maimemo" ? "墨墨" : (d.source === "youdao" ? "有道" : "本地");
+  $("fStatus").textContent = "词义来源:" + src + " · 已掌握词自动记入 mastered.txt · 数据有本地缓存";
+  if (d.meanings.length) {
+    $("fMeanList").innerHTML = d.meanings.map(m => {
+      const p = fmtPos(m);
+      return '<div class="m">' + (p.pos ? '<span class="pos">' + esc(p.pos) + ".</span>" : "") + esc(p.rest || m) + "</div>";
+    }).join("");
+  } else {
+    $("fMeanList").innerHTML = '<div class="m" style="color:#5c6475">暂无词义(可联网后自动补全)</div>';
+  }
+  $("fExList").innerHTML = d.examples.length ? d.examples.map(e =>
+    '<div class="ex"><div class="en">' + highlight(e.en, w.spelling) + "</div>" +
+    (e.zh ? '<div class="zh">' + esc(e.zh) + "</div>" : "") + "</div>").join("")
+    : '<div class="m" style="color:#5c6475">暂无例句(可联网后自动补全)</div>';
+}
+
+/* ---------- 操作 ---------- */
+async function know() {
+  const w = words[idx];
+  const r = await api.mark_mastered(w.spelling);
+  words.splice(idx, 1);
+  if (words.length === 0) { showEmpty(); $("full").classList.remove("open"); $("compact").style.display = "flex"; await api.set_size(400, 168); return; }
+  if (idx >= words.length) idx = 0;
+  toast("已掌握:" + w.spelling + " · 剩余 " + r.total + " 词");
+  await renderDetail();
+}
+async function nextWord() { nextIdx(); await renderDetail(); }
+async function prevWord() { prevIdx(); await renderDetail(); }
+async function speakNow() {
+  const w = words[idx];
+  try { await api.speak(w.spelling); } catch (e) {}
+}
+async function togglePause() {
+  paused = !paused;
+  $("btnPause").textContent = paused ? "▶ 继续" : "⏸ 暂停";
+  if (!paused) schedule();
+}
+async function addWord() {
+  const v = $("fAddInput").value.trim();
+  if (!v) return;
+  const r = await api.add_word(v);
+  toast(r.msg, 3000);
+  if (r.ok) {
+    $("fAddInput").value = "";
+    words = await api.get_words(0, 600);
+    if (words.length) { if (idx >= words.length) idx = 0; await renderDetail(); }
+  }
+}
+async function saveCfg() {
+  const patch = {
+    token: $("cfgToken").value.trim(),
+    show_word_sec: parseInt($("cfgWordSec").value) || 6,
+    show_meaning_sec: parseInt($("cfgMeanSec").value) || 5,
+    corner: $("cfgCorner").value,
+    tts: $("cfgTts").value,
+    auto_mode: $("cfgAuto").checked,
+  };
+  const r = await api.save_cfg(patch);
+  autoMode = patch.auto_mode;
+  renderModeBtn();
+  state.cfg = Object.assign({}, state.cfg, patch);
+  toast("设置已保存(部分设置下次启动生效)");
+  if (autoMode) schedule(); else clearTimeout(timer);
+}
+
+/* ---------- 事件 ---------- */
+$("compact").addEventListener("click", e => {
+  if (e.target.closest("#cDrag")) return;
+  if (e.target.closest(".cbtn")) return;
+  compactClick();
+});
+$("compact").addEventListener("contextmenu", e => { e.preventDefault(); expand(); });
+$("btnPrevC").addEventListener("click", e => { e.stopPropagation(); compactPrev(); });
+$("btnSpeakC").addEventListener("click", e => { e.stopPropagation(); compactSpeak(); });
+$("cMode").addEventListener("click", e => { e.stopPropagation(); toggleAuto(); });
+$("btnCollapse").addEventListener("click", collapse);
+$("btnQuit").addEventListener("click", () => api.quit());
+$("btnKnow").addEventListener("click", know);
+$("btnNext").addEventListener("click", nextWord);
+$("btnPrev").addEventListener("click", prevWord);
+$("btnPause").addEventListener("click", togglePause);
+$("fSpeak").addEventListener("click", speakNow);
+$("btnAdd").addEventListener("click", addWord);
+$("fAddInput").addEventListener("keydown", e => { if (e.key === "Enter") addWord(); });
+$("fCfgLink").addEventListener("click", () => {
+  const open = $("fCfg").classList.toggle("open");
+  $("fCfgLink").textContent = open ? "⚙ 收起设置" : "⚙ 设置(token / 间隔 / 角落 / 轮播)";
+  if (open) {
+    const c = state.cfg || {};
+    $("cfgToken").value = c.token || "";
+    $("cfgWordSec").value = c.show_word_sec || 6;
+    $("cfgMeanSec").value = c.show_meaning_sec || 5;
+    $("cfgCorner").value = c.corner || "bottom_right";
+    $("cfgTts").value = c.tts || "edge";
+    $("cfgAuto").checked = c.auto_mode !== false;
+  }
+});
+$("btnSaveCfg").addEventListener("click", saveCfg);
+
+window.addEventListener("pywebviewready", init);
+</script>
+</body>
+</html>

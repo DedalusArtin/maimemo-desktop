@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>墨墨开放 API Web端</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif; background: #f2f4f8; color: #23272f; display: flex; height: 100vh; overflow: hidden; }
+  /* 侧边栏 */
+  #side { width: 210px; background: #1b1f27; color: #c6ccd8; display: flex; flex-direction: column; flex-shrink: 0; }
+  #side .logo { padding: 18px 16px 14px; font-size: 16px; font-weight: 700; color: #fff; border-bottom: 1px solid rgba(255,255,255,.07); }
+  #side .logo span { color: #3ecf8e; }
+  #side nav { flex: 1; overflow-y: auto; padding: 10px 8px; }
+  .navItem { padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13.5px; margin-bottom: 2px; display: flex; align-items: center; gap: 8px; }
+  .navItem:hover { background: rgba(255,255,255,.07); }
+  .navItem.active { background: rgba(62,207,142,.16); color: #3ecf8e; font-weight: 600; }
+  .navItem .badge { font-size: 10px; background: rgba(62,207,142,.25); color: #3ecf8e; border-radius: 5px; padding: 1px 5px; }
+  .navItem.disabled { opacity: .35; cursor: not-allowed; }
+  #side .foot { padding: 12px; font-size: 10.5px; color: #6b7280; border-top: 1px solid rgba(255,255,255,.07); line-height: 1.7; }
+  /* 主区 */
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #top { height: 56px; background: #fff; border-bottom: 1px solid #e5e8ee; display: flex; align-items: center; padding: 0 22px; gap: 12px; flex-shrink: 0; }
+  #top h1 { font-size: 16px; font-weight: 700; }
+  #top .spacer { flex: 1; }
+  #tokChip { font-size: 12px; color: #e05d5d; display: flex; align-items: center; gap: 6px; }
+  #tokChip.ok { color: #1d9d6b; }
+  #tokChip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .btn { border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; font-weight: 600; font-family: inherit; }
+  .btnGreen { background: #3ecf8e; color: #08301f; }
+  .btnGreen:hover { filter: brightness(1.07); }
+  .btnGhost { background: #eef1f6; color: #454c58; }
+  .btnGhost:hover { background: #e2e7ef; }
+  #content { flex: 1; overflow-y: auto; padding: 22px; }
+  .groupTitle { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .groupDesc { font-size: 12.5px; color: #7a8190; margin-bottom: 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 18px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(20,30,50,.06); }
+  .card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .card h3 .m { font-size: 10.5px; background: #eef3f9; color: #4a6a92; border-radius: 5px; padding: 2px 7px; font-weight: 600; }
+  .frow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .frow label { font-size: 12.5px; color: #5c6475; }
+  input[type=text], input[type=number], input[type=date], textarea, select { border: 1px solid #d8dde6; border-radius: 8px; padding: 7px 10px; font-size: 13px; font-family: inherit; outline: none; background: #fbfcfe; }
+  input:focus, textarea:focus { border-color: #3ecf8e; }
+  textarea { width: 100%; min-height: 64px; resize: vertical; font-family: Consolas, monospace; font-size: 12.5px; }
+  .jsonView { background: #151a22; color: #9fe8c8; border-radius: 10px; padding: 14px; font-family: Consolas, monospace; font-size: 12.5px; white-space: pre-wrap; word-break: break-all; max-height: 340px; overflow: auto; display: none; margin-top: 4px; }
+  .jsonView.err { color: #ff9d9d; }
+  .jsonView.show { display: block; }
+  .smallBtn { border: none; background: #eef1f6; border-radius: 6px; padding: 3px 9px; font-size: 11.5px; cursor: pointer; color: #454c58; font-family: inherit; }
+  .smallBtn:hover { background: #dfe5ee; }
+  .smallBtn.g { background: rgba(62,207,142,.14); color: #17835a; }
+  .wordRow { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #edf0f5; border-radius: 9px; margin-bottom: 7px; flex-wrap: wrap; }
+  .wordRow .w { font-size: 14.5px; font-weight: 700; min-width: 110px; }
+  .wordRow .tag { font-size: 10.5px; border-radius: 5px; padding: 1px 6px; }
+  .tag.new { background: #fff3cd; color: #9a6b00; }
+  .tag.done { background: #d9f7e9; color: #17835a; }
+  .tag.todo { background: #e8ecf3; color: #6b7280; }
+  .wordRow .detail { width: 100%; }
+  .wordRow .detail .dv { background: #f7f9fc; border-radius: 8px; padding: 10px; font-size: 12.5px; margin-top: 6px; line-height: 1.7; }
+  .wordRow .detail .dv .en { color: #2d3540; font-weight: 600; }
+  .wordRow .detail .dv .zh { color: #6b7280; }
+  /* 弹窗 */
+  #modal { position: fixed; inset: 0; background: rgba(10,14,20,.5); display: none; align-items: center; justify-content: center; z-index: 50; }
+  #modal.show { display: flex; }
+  #modal .box { background: #fff; border-radius: 14px; padding: 24px; width: 420px; }
+  #modal .box h3 { margin-bottom: 14px; font-size: 15px; }
+  #modal .box p { font-size: 12px; color: #7a8190; margin-bottom: 10px; line-height: 1.7; }
+  #modal input { width: 100%; margin-bottom: 12px; }
+  .spin { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(62,207,142,.3); border-top-color: #3ecf8e; border-radius: 50%; animation: sp .7s linear infinite; vertical-align: -2px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #c9cfd9; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div id="side">
+  <div class="logo">墨墨开放 API <span>Web端</span></div>
+  <nav id="nav"></nav>
+  <div class="foot">频控:20次/10秒 · 40次/60秒<br>2000次/5小时(背单词) · 8000次/5小时(记忆卡)<br>仿 open.maimemo.com 官方演示</div>
+</div>
+
+<div id="main">
+  <div id="top">
+    <h1 id="pageTitle">学习数据</h1>
+    <div class="spacer"></div>
+    <span id="tokChip"><span class="dot"></span><span id="tokText">未配置 Token</span></span>
+    <button class="btn btnGhost" onclick="openModal()">⚙ 设置 Token</button>
+  </div>
+  <div id="content"></div>
+</div>
+
+<div id="modal">
+  <div class="box">
+    <h3>设置 Token</h3>
+    <p>获取方式:手机墨墨背单词 App → 我的 → 更多设置 → 实验功能 → 开放 API(需开启自动同步)。<br>Token 与桌面版悬浮窗共用,保存在 config.json。</p>
+    <input type="text" id="tokInput" placeholder="粘贴你的 Token" />
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btnGhost" onclick="closeModal()">取消</button>
+      <button class="btn btnGreen" onclick="saveTok()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ---------------- 操作定义 ---------------- */
+const GROUPS = [
+  { id: "study", name: "学习数据", badge: "公测", desc: "查看今日学习进度与单词、查询学习记录、添加单词、提前复习" },
+  { id: "word", name: "单词", desc: "按拼写查询单词、批量查询词汇信息" },
+  { id: "interp", name: "释义", desc: "查询、创建、更新、删除单词释义" },
+  { id: "phrase", name: "例句", desc: "查询、创建、更新、删除例句(含翻译与标签)" },
+  { id: "note", name: "助记", desc: "查询、创建、更新、删除助记内容(谐音、联想等)" },
+  { id: "notepad", name: "云词本", desc: "查询、创建、管理云词本" },
+  { id: "markji", name: "记忆卡", disabled: true, desc: "牌组/章节/卡片管理请见官方演示" },
+];
+const P = (name, label, def) => ({ name, label, def });
+
+/* ---------------- 渲染 ---------------- */
+const $ = id => document.getElementById(id);
+let cur = "study";
+
+function renderNav() {
+  $("nav").innerHTML = GROUPS.map(g =>
+    `<div class="navItem${g.disabled ? " disabled" : ""}${g.id === cur ? " active" : ""}" data-g="${g.id}">${g.name}${g.badge ? `<span class="badge">${g.badge}</span>` : ""}</div>`).join("");
+  document.querySelectorAll(".navItem").forEach(el => {
+    el.onclick = () => { if (!el.classList.contains("disabled")) { cur = el.dataset.g; renderNav(); renderPage(); } };
+  });
+}
+
+function card(title, method, bodyHtml, jsonId) {
+  return `<div class="card"><h3>${title}<span class="m">${method}</span></h3>${bodyHtml}
+    <div class="jsonView" id="${jsonId}"></div></div>`;
+}
+function frow(html) { return `<div class="frow">${html}</div>`; }
+function inp(name, label, def, w) { return `<label>${label}</label><input type="text" id="${name}" value="${def || ""}" style="width:${w || 220}px" />`; }
+function num(name, label, def) { return `<label>${label}</label><input type="number" id="${name}" value="${def}" style="width:90px" />`; }
+function jbox(name) { return `<textarea id="${name}" spellcheck="false"></textarea>`; }
+function runBtn(onclick, text) { return `<button class="btn btnGreen" onclick="${onclick}">${text}</button>`; }
+function show(jsonId, data, isErr) {
+  const el = $(jsonId);
+  el.classList.add("show");
+  el.classList.toggle("err", !!isErr);
+  el.textContent = isErr ? ("错误: " + data) : JSON.stringify(data, null, 2);
+}
+function spin(id, on) { const el = $(id); if (on) { el.dataset.old = el.textContent; el.textContent = ""; el.appendChild(Object.assign(document.createElement("span"), { className: "spin" })); } else { el.innerHTML = el.dataset.old || el.textContent; } }
+
+/* ---------------- API ---------------- */
+async function api(method, path, body) {
+  const opt = { method, headers: {} };
+  if (body !== undefined) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
+  const r = await fetch(path, opt);
+  let data; try { data = await r.json(); } catch (e) { data = { raw: "无法解析响应" }; }
+  if (!r.ok) throw new Error(JSON.stringify(data));
+  return data;
+}
+function qs(obj) { return "?" + Object.entries(obj).filter(([, v]) => v !== "" && v !== undefined && v !== null).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&"); }
+function readJson(id, fallback) { try { return JSON.parse($(id).value); } catch (e) { return fallback; } }
+
+/* ---------------- 学习数据 ---------------- */
+async function getProgress() {
+  const j = "pg"; show(j, "", false); show(j, "请求中…", false);
+  try { show(j, await api("POST", "/api/v1/memo/study/get_study_progress", {})); } catch (e) { show(j, e.message, true); }
+}
+async function getToday() {
+  const j = "td";
+  const limit = $("tdLimit").value || 50;
+  $("tdList").innerHTML = '<span class="spin"></span> 请求中…';
+  try {
+    const data = await api("POST", "/api/v1/memo/study/get_today_items", { is_finished: false, limit: parseInt(limit) });
+    const items = (data.today_items || []).map(it => `
+      <div class="wordRow">
+        <span class="w">${esc(it.voc_spelling)}</span>
+        ${it.is_new ? '<span class="tag new">新词</span>' : ""}
+        ${it.is_finished ? '<span class="tag done">已完成</span>' : '<span class="tag todo">待复习</span>'}
+        <span style="font-size:11px;color:#9aa3b5">顺序 ${it.order || "-"}</span>
+        <span style="margin-left:auto">
+          <button class="smallBtn g" onclick="wordDetail('${it.voc_id}','${esc(it.voc_spelling)}','${j}')">词义/例句</button>
+        </span>
+        <div class="detail" id="det_${it.voc_id}"></div>
+      </div>`).join("");
+    $("tdList").innerHTML = items || '<div style="color:#9aa3b5;font-size:13px">今日无学习单词(需当日先在手机 App 打开过并开启自动同步)</div>';
+    show(j, data, false);
+  } catch (e) { $("tdList").innerHTML = ""; show(j, e.message, true); }
+}
+async function wordDetail(vocId, spelling, _j) {
+  const box = $("det_" + vocId);
+  if (!vocId) { box.innerHTML = '<div class="dv" style="color:#c0392b">该词无 voc_id(本地词),无法从墨墨拉取</div>'; return; }
+  box.innerHTML = '<span class="spin"></span> 加载中…';
+  try {
+    const [interp, phrs] = await Promise.all([
+      api("GET", "/api/v1/memo/interpretations" + qs({ voc_id: vocId })),
+      api("GET", "/api/v1/memo/phrases" + qs({ voc_id: vocId }))
+    ]);
+    const ints = (interp.interpretations || []).map(i => "<div>· " + esc(typeof i.content === "string" ? i.content : JSON.stringify(i.content || "")) + "</div>").join("") || "<div style='color:#9aa3b5'>无释义</div>";
+    const exs = (phrs.phrases || []).map(p => `<div class="en">· ${esc(p.phrase)}</div><div class="zh">  ${esc(p.interpretation || "")}</div>`).join("") || "<div style='color:#9aa3b5'>无例句</div>";
+    box.innerHTML = `<div class="dv"><b>${esc(spelling)}</b><div style="margin:4px 0">${ints}</div><div style="border-top:1px solid #e5e8ee;margin:6px 0"></div>${exs}</div>`;
+  } catch (e) { box.innerHTML = '<div class="dv" style="color:#c0392b">加载失败: ' + esc(e.message) + "</div>"; }
+}
+async function addWords() {
+  const j = "aw";
+  const raw = $("awInput").value.trim();
+  if (!raw) return;
+  const spellings = raw.split(/[\s,，、\n]+/).filter(Boolean);
+  show(j, "查询单词 ID…", false);
+  try {
+    const ids = [];
+    const results = [];
+    for (const s of spellings) {
+      try {
+        const v = await api("GET", "/api/v1/memo/vocabulary" + qs({ spelling: s }));
+        const id = (v.voc || {}).id;
+        if (id) { ids.push(id); results.push(`${s} → ✓`); } else { results.push(`${s} → 查无此词`); }
+      } catch (e) { results.push(`${s} → 失败`); }
+    }
+    let msg = "添加结果:\n" + results.join("\n");
+    if (ids.length) {
+      const r = await api("POST", "/api/v1/memo/study/add_words", { words: ids.map(id => ({ id })), advance: false });
+      msg += `\n\n成功添加: ${r.added_count} 个(上限不足或已添加过的不计入)`;
+    }
+    show(j, msg, false);
+  } catch (e) { show(j, e.message, true); }
+}
+async function studyRecords() {
+  const j = "sr";
+  const body = { start: $("srStart").value || undefined, end: $("srEnd").value || undefined };
+  show(j, "请求中…", false);
+  try { show(j, await api("POST", "/api/v1/memo/study/query_study_records", body)); } catch (e) { show(j, e.message, true); }
+}
+async function advanceStudy() {
+  const j = "as";
+  const raw = $("asInput").value.trim();
+  if (!raw) return;
+  const spellings = raw.split(/[\s,，、\n]+/).filter(Boolean);
+  try {
+    const ids = [];
+    for (const s of spellings) {
+      try { const v = await api("GET", "/api/v1/memo/vocabulary" + qs({ spelling: s })); const id = (v.voc || {}).id; if (id) ids.push(id); } catch (e) {}
+    }
+    show(j, "提前复习 " + ids.length + " 个…", false);
+    show(j, await api("POST", "/api/v1/memo/study/advance_study", { voc_ids: ids }), false);
+  } catch (e) { show(j, e.message, true); }
+}
+
+/* ---------------- 单词 ---------------- */
+async function vocBySpelling() {
+  const j = "vw";
+  const s = $("vwSpelling").value.trim();
+  if (!s) return;
+  show(j, "请求中…", false);
+  try {
+    const data = await api("GET", "/api/v1/memo/vocabulary" + qs({ spelling: s }));
+    show(j, data, false);
+  } catch (e) { show(j, e.message, true); }
+}
+async function vocQuery() {
+  const j = "vq";
+  show(j, "请求中…", false);
+  try { show(j, await api("POST", "/api/v1/memo/vocabulary/query", readJson("vqBody", { spellings: [] }))); } catch (e) { show(j, e.message, true); }
+}
+
+/* ---------------- 通用 CRUD 分组 ---------------- */
+function crudApi(group, noun) {
+  return async function (action, id) {
+    const j = group + "_" + action + (id || "");
+    const el = $(j);
+    if (!el) return;
+    show(j, "请求中…", false);
+    try {
+      let data;
+      if (action === "get") data = await api("GET", `/api/v1/memo/${noun}s` + qs({ voc_id: $(group + "VocId").value.trim() }));
+      else if (action === "create") data = await api("POST", `/api/v1/memo/${noun}s`, readJson(group + "CreateBody", {}));
+      else if (action === "update") data = await api("POST", `/api/v1/memo/${noun}s/${id}`, readJson(group + "_u_" + id, {}));
+      else if (action === "delete") data = await api("DELETE", `/api/v1/memo/${noun}s/${id}`);
+      show(j, data, false);
+    } catch (e) { show(j, e.message, true); }
+  };
+}
+const runInterp = crudApi("interp", "interpretation");
+const runPhrase = crudApi("phrase", "phrase");
+const runNote = crudApi("note", "note");
+
+function renderCrudPage(g, noun, label, extraFields, rowRender) {
+  const rows = [];
+  return `<div class="groupTitle">${label}</div><div class="groupDesc">${g.desc}</div>
+  <div class="card"><h3>查询${label}<span class="m">GET</span></h3>${frow(inp(g + "VocId", "voc_id", "", 300) + runBtn(`${g}Run('get')`, "查询"))}
+    <div class="jsonView" id="${g}_get"></div><div id="${g}_rows"></div></div>
+  <div class="card"><h3>创建${label}<span class="m">POST</span></h3>${jbox(g + "CreateBody")}${runBtn(`${g}Run('create')`, "创建")}
+    <div class="jsonView" id="${g}_create"></div></div>`;
+}
+function setCrudJson(g, defaults) { $(g + "CreateBody").value = JSON.stringify(defaults, null, 2); }
+
+/* ---------------- 页面组装 ---------------- */
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+function renderPage() {
+  const g = GROUPS.find(x => x.id === cur);
+  $("pageTitle").textContent = g.name + (g.badge ? "（公测）" : "");
+  let html = "";
+  if (cur === "study") {
+    html = `<div class="groupTitle">学习数据</div><div class="groupDesc">${g.desc}</div>
+    <div class="card"><h3>获取今日学习进度<span class="m">POST</span></h3>${runBtn("getProgress()", "获取进度")}<div class="jsonView" id="pg"></div></div>
+    <div class="card"><h3>获取今日学习单词<span class="m">POST</span></h3>
+      ${frow(num("tdLimit", "数量(≤1000)", 50) + runBtn("getToday()", "获取今日单词"))}
+      <div id="tdList"></div><div class="jsonView" id="td"></div></div>
+    <div class="card"><h3>添加单词(到今日学习计划)<span class="m">POST</span></h3>
+      ${frow('<textarea id="awInput" placeholder="每行一个单词,如:&#10;apple&#10;banana" style="min-height:70px"></textarea>')}
+      ${runBtn("addWords()", "查询并添加")}<div class="jsonView" id="aw"></div></div>
+    <div class="card"><h3>查询学习记录<span class="m">POST</span></h3>
+      ${frow('<label>开始</label><input type="date" id="srStart" /> <label>结束</label><input type="date" id="srEnd" />' + runBtn("studyRecords()", "查询"))}
+      <div class="jsonView" id="sr"></div></div>
+    <div class="card"><h3>提前复习<span class="m">POST</span></h3>
+      ${frow('<textarea id="asInput" placeholder="每行一个单词" style="min-height:60px"></textarea>')}
+      ${runBtn("advanceStudy()", "加入提前复习")}<div class="jsonView" id="as"></div></div>`;
+  } else if (cur === "word") {
+    html = `<div class="groupTitle">单词</div><div class="groupDesc">${g.desc}</div>
+    <div class="card"><h3>获取单词<span class="m">GET /api/v1/memo/vocabulary</span></h3>
+      ${frow(inp("vwSpelling", "拼写", "", 220) + runBtn("vocBySpelling()", "查询"))}
+      <div class="jsonView" id="vw"></div></div>
+    <div class="card"><h3>查询单词(批量)<span class="m">POST /api/v1/memo/vocabulary/query</span></h3>
+      ${jbox("vqBody")}${runBtn("vocQuery()", "查询")}<div class="jsonView" id="vq"></div></div>`;
+    setTimeout(() => { $("vqBody").value = JSON.stringify({ spellings: ["apple", "banana"] }, null, 2); }, 0);
+  } else if (cur === "interp") {
+    html = renderCrudPage(g, "interp", "释义");
+    setTimeout(() => setCrudJson("interp", { voc_id: "", content: "n. 苹果" }), 0);
+  } else if (cur === "phrase") {
+    html = renderCrudPage(g, "phrase", "例句");
+    setTimeout(() => setCrudJson("phrase", { voc_id: "", phrase: "This is an apple.", interpretation: "这是一个苹果。", tags: ["考研"] }), 0);
+  } else if (cur === "note") {
+    html = renderCrudPage(g, "note", "助记");
+    setTimeout(() => setCrudJson("note", { voc_id: "", content: "谐音记忆:apple → 挨破" }), 0);
+  } else if (cur === "notepad") {
+    html = `<div class="groupTitle">云词本</div><div class="groupDesc">${g.desc}</div>
+    <div class="card"><h3>查询云词本<span class="m">GET</span></h3>${runBtn(`npRun('list')`, "查询列表")}<div class="jsonView" id="np_list"></div><div id="np_rows"></div></div>
+    <div class="card"><h3>创建云词本<span class="m">POST</span></h3>${jbox("npCreateBody")}${runBtn(`npRun('create')`, "创建")}<div class="jsonView" id="np_create"></div></div>
+    <div class="card"><h3>获取/更新/删除<span class="m">GET/POST/DELETE</span></h3>${frow(inp("npId", "词本 id", "", 320) + runBtn(`npRun('detail')`, "获取详情") + runBtn(`npRun('del')`, "删除"))}
+      <div class="jsonView" id="np_detail"></div><div class="jsonView" id="np_del"></div></div>`;
+    setTimeout(() => { $("npCreateBody").value = JSON.stringify({ name: "我的词本" }, null, 2); }, 0);
+  } else {
+    html = `<div class="groupTitle">记忆卡</div><div class="groupDesc">墨墨记忆卡(牌组/章节/卡片)的 API 操作请访问官方演示站:<br><a href="https://www.maimemo.com/pages/openapi-demo/" target="_blank">https://www.maimemo.com/pages/openapi-demo/</a></div>`;
+  }
+  $("content").innerHTML = html;
+  wireCrudRows();
+}
+function wireCrudRows() {
+  const map = { interp: "interpretation", phrase: "phrase", note: "note" };
+  for (const g of ["interp", "phrase", "note"]) {
+    const noun = map[g];
+    const row = document.querySelector(`#${g}_rows`);
+    if (row) row.innerHTML = "";
+  }
+}
+
+/* CRUD 运行器(带行列表渲染) */
+window.interpRun = async function (action, id) {
+  if (action === "get") { await runInterp("get"); renderRows("interp", "interpretation"); return; }
+  await runInterp(action, id);
+};
+window.phraseRun = async function (action, id) {
+  if (action === "get") { await runPhrase("get"); renderRows("phrase", "phrase"); return; }
+  await runPhrase(action, id);
+};
+window.noteRun = async function (action, id) {
+  if (action === "get") { await runNote("get"); renderRows("note", "note"); return; }
+  await runNote(action, id);
+};
+async function renderRows(g, noun) {
+  const vocId = ($(g + "VocId").value || "").trim();
+  if (!vocId) return;
+  const box = $(g + "_rows");
+  box.innerHTML = '<span class="spin"></span>';
+  try {
+    const data = await api("GET", `/api/v1/memo/${noun}s` + qs({ voc_id: vocId }));
+    const items = data[noun + "s"] || [];
+    box.innerHTML = items.length ? items.map(it => {
+      const content = it.content || it.phrase || JSON.stringify(it);
+      const sub = it.interpretation || "";
+      return `<div class="wordRow"><span class="w" style="font-size:13px;min-width:60px">${esc(typeof content === "string" ? content.slice(0, 40) : "")}</span>
+        <span style="font-size:11.5px;color:#7a8190">${esc(sub.slice(0, 40))}</span>
+        <span style="margin-left:auto"><button class="smallBtn" onclick="${g}Run('update','${it.id}')">更新</button>
+        <button class="smallBtn" style="color:#c0392b" onclick="${g}Run('delete','${it.id}')">删除</button></span></div>`;
+    }).join("") : '<div style="color:#9aa3b5;font-size:12.5px">暂无数据(可能是空的或字段名不同,以响应 JSON 为准)</div>';
+    if (items.length) {
+      // 更新用的 JSON 编辑器
+      items.forEach(it => {
+        const body = JSON.stringify({ voc_id: vocId, content: it.content || it.phrase || "" }, null, 2);
+        const wrap = document.createElement("div");
+        wrap.innerHTML = `<textarea id="${g}_u_${it.id}" style="display:none"></textarea>`;
+        document.body.appendChild(wrap);
+        $(g + "_u_" + it.id).value = body;
+      });
+    }
+  } catch (e) { box.innerHTML = '<div style="color:#c0392b">' + esc(e.message) + "</div>"; }
+}
+
+/* 云词本 */
+window.npRun = async function (action) {
+  const j = "np_" + action;
+  show(j, "请求中…", false);
+  try {
+    let data;
+    if (action === "list") data = await api("GET", "/api/v1/memo/notepads");
+    else if (action === "create") data = await api("POST", "/api/v1/memo/notepads", readJson("npCreateBody", {}));
+    else if (action === "detail") data = await api("GET", "/api/v1/memo/notepads/" + $("npId").value.trim());
+    else if (action === "del") data = await api("DELETE", "/api/v1/memo/notepads/" + $("npId").value.trim());
+    show(j, data, false);
+  } catch (e) { show(j, e.message, true); }
+};
+
+/* ---------------- Token ---------------- */
+async function loadTok() {
+  try {
+    const r = await fetch("/api/config");
+    const d = await r.json();
+    const ok = !!(d.token || "").trim();
+    $("tokChip").classList.toggle("ok", ok);
+    $("tokText").textContent = ok ? "Token 已配置" : "未配置 Token";
+  } catch (e) {}
+}
+function openModal() { $("modal").classList.add("show"); }
+function closeModal() { $("modal").classList.remove("show"); }
+async function saveTok() {
+  const tok = $("tokInput").value.trim();
+  await fetch("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: tok }) });
+  closeModal();
+  loadTok();
+}
+
+renderNav();
+renderPage();
+loadTok();
+</script>
+</body>
+</html>
