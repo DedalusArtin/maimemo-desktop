@@ -179,6 +179,27 @@ def append_mastered(spelling):
         f.write("{} | {}\n".format(spelling, time.strftime("%Y-%m-%d %H:%M")))
 
 
+# ---------------- 复习状态(认识/模糊/忘记 的间隔记忆) ----------------
+REVIEW_PATH = os.path.join(BASE_DIR, "review.json")
+
+
+def load_review():
+    try:
+        with open(REVIEW_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_review(rev):
+    try:
+        with _cache_lock:
+            with open(REVIEW_PATH, "w", encoding="utf-8") as f:
+                json.dump(rev, f, ensure_ascii=False, indent=1)
+    except Exception:
+        pass
+
+
 # ---------------- 词典补全(有道,带缓存) ----------------
 def enrich(spelling, voc_id=""):
     cache = load_cache()
@@ -344,6 +365,7 @@ class Api:
     def __init__(self, window):
         self.win = window
         self.pool = []
+        self.later = []          # 模糊词:{w: 词dict, due: 时间戳}
         self.pool_ready = False
         self.pool_error = ""
         self.mastered = load_mastered()
@@ -355,19 +377,23 @@ class Api:
             tok = (cfg.get("token") or "").strip()
             local = load_local_words()
             merged = {}
+            rev = load_review()
+            now = time.time()
+            skip = lambda k: k in self.mastered or (k in rev and rev[k].get("due", 0) > now)
             if tok and cfg.get("use_api", True):
                 try:
                     for it in fetch_today_items():
-                        if it["spelling"].lower() in self.mastered:
+                        k = it["spelling"].lower()
+                        if skip(k):
                             continue
-                        merged[it["spelling"].lower()] = {
+                        merged[k] = {
                             "spelling": it["spelling"], "voc_id": it["voc_id"],
                             "is_new": it["is_new"], "source": "maimemo",
                             "local_meaning": ""}
                 except Exception as e:
                     self.pool_error = "墨墨同步失败:{}".format(e)
             for sp, v in local.items():
-                if sp in self.mastered:
+                if skip(sp):
                     continue
                 if sp in merged:
                     merged[sp]["local_meaning"] = v["meaning"]
@@ -376,6 +402,8 @@ class Api:
                                   "is_new": False, "source": "local",
                                   "local_meaning": v["meaning"]}
             self.pool = list(merged.values())
+            if cfg.get("shuffle", True):
+                random.shuffle(self.pool)
         except Exception as e:
             self.pool_error = str(e)
         finally:
@@ -393,6 +421,12 @@ class Api:
         }
 
     def get_words(self, start=0, count=600):
+        # 到期的模糊词自动回到词池
+        now = time.time()
+        due = [x for x in self.later if x.get("due", 0) <= now]
+        if due:
+            self.pool.extend(x["w"] for x in due)
+            self.later = [x for x in self.later if x.get("due", 0) > now]
         return self.pool[start:start + count]
 
     def get_detail(self, spelling):
@@ -413,6 +447,77 @@ class Api:
         self.mastered.add(spelling.lower())
         self.pool = [w for w in self.pool if w["spelling"].lower() != spelling.lower()]
         return {"ok": True, "total": len(self.pool)}
+
+    def mark_vague(self, spelling):
+        """模糊:10分钟后自动回来复习(本地间隔记忆)"""
+        key = spelling.lower()
+        rev = load_review()
+        rev[key] = {"level": "vague", "due": time.time() + 600}
+        save_review(rev)
+        w = None
+        for i, x in enumerate(self.pool):
+            if x["spelling"].lower() == key:
+                w = self.pool.pop(i)
+                break
+        if w:
+            self.later.append({"w": w, "due": time.time() + 600})
+        return {"ok": True, "total": len(self.pool) + len(self.later),
+                "msg": "已标记模糊,10分钟后自动回来复习"}
+
+    def mark_forget(self, spelling):
+        """忘记:移到队尾,马上再看一遍"""
+        key = spelling.lower()
+        for i, x in enumerate(self.pool):
+            if x["spelling"].lower() == key:
+                w = self.pool.pop(i)
+                self.pool.append(w)
+                break
+        return {"ok": True, "total": len(self.pool), "msg": "已标记忘记,稍后再看一遍"}
+
+    def add_preview(self, spelling):
+        spelling = (spelling or "").strip()
+        if not spelling:
+            return {"ok": False, "msg": "请输入单词"}
+        info = enrich(spelling, "")
+        return {"ok": True, "spelling": spelling,
+                "phonetic": info.get("phonetic", ""),
+                "meanings": info.get("meanings", []),
+                "examples": info.get("examples", []),
+                "source": info.get("source", "local")}
+
+    def import_notepads(self):
+        """从墨墨云词本导入单词(需在App里创建云词本)"""
+        try:
+            j = api_get("/notepads", {})
+            pads = ((j.get("data") or j).get("notepads")) or []
+            if not pads:
+                return {"ok": False, "msg": "云词本为空:在墨墨App里创建云词本、添加单词后,再来导入"}
+            added = 0
+            for p in pads:
+                pid = p.get("id")
+                if not pid:
+                    continue
+                d = api_get("/notepads/" + pid, {})
+                np = ((d.get("data") or d).get("notepad")) or d
+                content = np.get("content") or ""
+                for w in re.split(r"[\s,，、;\n]+", str(content)):
+                    w = w.strip()
+                    if not re.fullmatch(r"[A-Za-z][A-Za-z'\-]*", w):
+                        continue
+                    k = w.lower()
+                    if k in self.mastered or any(x["spelling"].lower() == k for x in self.pool):
+                        continue
+                    self.pool.append({"spelling": w, "voc_id": "", "is_new": False,
+                                      "source": "notepad", "local_meaning": ""})
+                    try:
+                        with open(WORDS_PATH, "a", encoding="utf-8") as f:
+                            f.write("\n{} | (云词本导入)\n".format(w))
+                    except Exception:
+                        pass
+                    added += 1
+            return {"ok": True, "msg": "从云词本导入 {} 个单词".format(added), "total": len(self.pool)}
+        except Exception as e:
+            return {"ok": False, "msg": "导入失败: {}".format(e)}
 
     def add_word(self, spelling):
         spelling = (spelling or "").strip()
@@ -507,7 +612,8 @@ def _main():
     print("window created", flush=True)
     api = Api(window)
     for _m in ("get_state", "get_words", "get_detail", "speak", "mark_mastered",
-               "add_word", "save_cfg", "set_size", "reposition", "quit"):
+               "mark_vague", "mark_forget", "add_preview", "add_word", "import_notepads",
+               "save_cfg", "set_size", "reposition", "quit"):
         window.expose(getattr(api, _m))
     print("exposed, starting...", flush=True)
     webview.start()

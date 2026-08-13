@@ -155,15 +155,26 @@
     <div class="secTitle">例句</div>
     <div id="fExList"></div>
     <div id="fActions">
-      <button class="btn btnGhost btnIcon" id="btnPrev" title="上一个">◀</button>
-      <button class="btn btnGreen" id="btnKnow">✓ 认识</button>
-      <button class="btn btnPrimary" id="btnNext">下一个 →</button>
-      <button class="btn btnGhost" id="btnPause">⏸ 暂停</button>
-      <button class="btn btnGhost btnIcon" id="btnCollapse" title="收起">▾</button>
+      <div style="display:flex;gap:7px;width:100%">
+        <button class="btn btnGreen" id="btnKnow">✓ 认识</button>
+        <button class="btn btnGhost" id="btnVague">~ 模糊</button>
+        <button class="btn btnGhost" id="btnForget">✗ 忘记</button>
+      </div>
+      <div style="display:flex;gap:7px;width:100%">
+        <button class="btn btnGhost btnIcon" id="btnPrev" title="上一个">◀</button>
+        <button class="btn btnPrimary" id="btnNext">下一个 →</button>
+        <button class="btn btnGhost" id="btnPause">⏸ 暂停</button>
+        <button class="btn btnGhost btnIcon" id="btnCollapse" title="收起">▾</button>
+      </div>
     </div>
     <div id="fAddRow">
-      <input id="fAddInput" placeholder="添加单词(自动同步到墨墨)" />
-      <button class="btnAdd" id="btnAdd">添加</button>
+      <input id="fAddInput" placeholder="输入英文单词,查找后添加…" />
+      <button class="btnAdd" id="btnSearch">查找</button>
+      <button class="btnAdd" id="btnImportNP" title="从墨墨云词本导入(需App里先建云词本)">📥 导入云词本</button>
+    </div>
+    <div id="fPreview"></div>
+    <div id="fAddCfm" style="display:none;margin-top:8px">
+      <button class="btn btnGreen" id="btnConfirmAdd" style="height:34px;font-size:13px">✓ 确认添加(同步墨墨)</button>
     </div>
     <button id="fCfgLink">⚙ 设置(token / 间隔 / 角落 / 轮播)</button>
     <div id="fCfg">
@@ -334,7 +345,7 @@ async function expand() {
   clearTimeout(timer);
   $("compact").style.display = "none";
   $("full").classList.add("open");
-  await api.set_size(470, 660);
+  await api.set_size(470, 730);
   await renderDetail();
   setTimeout(() => api.reposition(), 120);
 }
@@ -379,10 +390,62 @@ async function know() {
   const w = words[idx];
   const r = await api.mark_mastered(w.spelling);
   words.splice(idx, 1);
-  if (words.length === 0) { showEmpty(); $("full").classList.remove("open"); $("compact").style.display = "flex"; await api.set_size(400, 168); return; }
+  if (!words.length) { words = await api.get_words(0, 600); }
+  if (!words.length) { showEmpty(); $("full").classList.remove("open"); $("compact").style.display = "flex"; await api.set_size(400, 168); return; }
   if (idx >= words.length) idx = 0;
   toast("已掌握:" + w.spelling + " · 剩余 " + r.total + " 词");
   await renderDetail();
+}
+async function vague() {
+  const w = words[idx];
+  const r = await api.mark_vague(w.spelling);
+  words.splice(idx, 1);
+  if (!words.length) { words = await api.get_words(0, 600); }
+  if (!words.length) { showEmpty(); $("full").classList.remove("open"); $("compact").style.display = "flex"; await api.set_size(400, 168); return; }
+  if (idx >= words.length) idx = 0;
+  toast(r.msg, 2600);
+  await renderDetail();
+}
+async function forget() {
+  const w = words[idx];
+  const r = await api.mark_forget(w.spelling);
+  toast(r.msg, 2000);
+  await renderDetail();
+}
+async function searchAdd() {
+  const v = $("fAddInput").value.trim();
+  if (!v) return;
+  $("fPreview").innerHTML = '<span class="spin"></span> 查找中…';
+  const r = await api.add_preview(v);
+  if (!r.ok) { $("fPreview").innerHTML = '<div style="color:#c0392b;font-size:12.5px">' + esc(r.msg) + "</div>"; return; }
+  const means = (r.meanings || []).map(m => "<div>· " + esc(m) + "</div>").join("") || "<div style='color:#5c6475'>暂无词义</div>";
+  const ex = (r.examples || []).slice(0, 1).map(e => '<div class="en">' + highlight(e.en, r.spelling) + "</div><div class='zh'>" + esc(e.zh || "") + "</div>").join("");
+  $("fPreview").innerHTML = '<div class="dv" style="background:#f3f6fa;border-radius:10px;padding:12px;margin-top:10px;font-size:13px;line-height:1.7">' +
+    '<b style="font-size:16px">' + esc(r.spelling) + '</b> <span style="color:#8b93a5">' + esc(r.phonetic || "") + '</span> <span style="font-size:10.5px;color:#5c6475">来源:' + esc(r.source) + "</span>" +
+    means + (ex ? '<div style="border-top:1px solid #e5e8ee;margin:6px 0"></div>' + ex : "") + "</div>";
+  $("fAddCfm").style.display = "block";
+}
+async function confirmAdd() {
+  const v = $("fAddInput").value.trim();
+  if (!v) return;
+  const r = await api.add_word(v);
+  toast(r.msg, 3000);
+  if (r.ok) {
+    $("fAddInput").value = "";
+    $("fPreview").innerHTML = "";
+    $("fAddCfm").style.display = "none";
+    words = await api.get_words(0, 600);
+    if (words.length) { if (idx >= words.length) idx = 0; await renderDetail(); }
+  }
+}
+async function importNP() {
+  toast("正在导入云词本…", 4000);
+  const r = await api.import_notepads();
+  toast(r.msg, 4000);
+  if (r.ok && r.total) {
+    words = await api.get_words(0, 600);
+    if (words.length) { if (idx >= words.length) idx = 0; await renderDetail(); }
+  }
 }
 async function nextWord() { nextIdx(); await renderDetail(); }
 async function prevWord() { prevIdx(); await renderDetail(); }
@@ -436,12 +499,16 @@ $("cMode").addEventListener("click", e => { e.stopPropagation(); toggleAuto(); }
 $("btnCollapse").addEventListener("click", collapse);
 $("btnQuit").addEventListener("click", () => api.quit());
 $("btnKnow").addEventListener("click", know);
+$("btnVague").addEventListener("click", vague);
+$("btnForget").addEventListener("click", forget);
 $("btnNext").addEventListener("click", nextWord);
 $("btnPrev").addEventListener("click", prevWord);
 $("btnPause").addEventListener("click", togglePause);
 $("fSpeak").addEventListener("click", speakNow);
-$("btnAdd").addEventListener("click", addWord);
-$("fAddInput").addEventListener("keydown", e => { if (e.key === "Enter") addWord(); });
+$("btnSearch").addEventListener("click", searchAdd);
+$("btnConfirmAdd").addEventListener("click", confirmAdd);
+$("btnImportNP").addEventListener("click", importNP);
+$("fAddInput").addEventListener("keydown", e => { if (e.key === "Enter") searchAdd(); });
 $("fCfgLink").addEventListener("click", () => {
   const open = $("fCfg").classList.toggle("open");
   $("fCfgLink").textContent = open ? "⚙ 收起设置" : "⚙ 设置(token / 间隔 / 角落 / 轮播)";
